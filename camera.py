@@ -1,6 +1,6 @@
 from mathutils import Matrix
 import numpy as np
-from .file_api import Files
+from .export_context import Files
 
 
 def export_custom_camera(C, b_scene, export_ctx, name, fov, near_clip, far_clip, to_world):
@@ -32,14 +32,24 @@ def export_custom_camera(C, b_scene, export_ctx, name, fov, near_clip, far_clip,
 
     params['film'] = film
 
-    # TODO: reconstruction filter
+    if b_scene.render.engine == 'MITSUBA2':
+        film['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
+    elif b_scene.render.engine == 'CYCLES':
+        if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':
+            film['rfilter'] = {
+                'type': 'gaussian',
+                'stddev' : b_scene.cycles.filter_width
+            }
+        elif b_scene.cycles.pixel_filter_type == 'BOX':
+            film['rfilter'] = {'type' : 'box'}
+            
     if export_ctx.export_ids:
         export_ctx.data_add(params, name=name)
     else:
         export_ctx.data_add(params)
 
 
-def export_camera(C, camera_instance, b_scene, export_ctx):
+def export_camera(camera_instance, b_scene, export_ctx):
     #camera
     b_camera = camera_instance.object#TODO: instances here too?
     params = {}
@@ -57,22 +67,35 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
     init_rot = Matrix.Rotation(np.pi, 4, 'Y')
     params['to_world'] = export_ctx.transform_matrix(b_camera.matrix_world @ init_rot)
 
-    sampler = {}
-    sampler['type'] = 'independent'
-    sampler['sample_count'] = b_scene.cycles.samples
+    if b_scene.render.engine == 'MITSUBA2':
+        sampler = getattr(b_camera.data.mitsuba.samplers, b_camera.data.mitsuba.active_sampler).to_dict()
+    else:
+        sampler = {'type' : 'independent'}
+        sampler['sample_count'] = b_scene.cycles.samples
 
     params['sampler'] = sampler
 
     film = {}
     film['type'] = 'hdrfilm'
 
-    scale = C.scene.render.resolution_percentage / 100
-    film['width'] = int(C.scene.render.resolution_x * scale)
-    film['height'] = int(C.scene.render.resolution_y * scale)
+    scale = b_scene.render.resolution_percentage / 100
+    film['width'] = int(b_scene.render.resolution_x * scale)
+    film['height'] = int(b_scene.render.resolution_y * scale)
+
+
+    if b_scene.render.engine == 'MITSUBA2':
+        film['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
+    elif b_scene.render.engine == 'CYCLES':
+        if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':
+            film['rfilter'] = {
+                'type': 'gaussian',
+                'stddev' : b_scene.cycles.filter_width
+            }
+        elif b_scene.cycles.pixel_filter_type == 'BOX':
+            film['rfilter'] = {'type' : 'box'}
 
     params['film'] = film
 
-    #TODO: reconstruction filter
     if export_ctx.export_ids:
         export_ctx.data_add(params, name=b_camera.name_full)
     else:
