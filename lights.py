@@ -120,3 +120,15 @@ def export_light(light_instance, export_ctx):
         export_ctx.log("Could not export '%s', light type %s is not supported" % (b_light.name_full, b_light.data.type), 'WARN')
     except NotImplementedError as err:
         export_ctx.log("Error while exporting light: '%s': %s" % (b_light.name_full, err.args[0]), 'WARN')
+
+
+def export_dummy_point_light(name, export_ctx):
+    params = {
+        'type': 'point'
+    }
+    #apply coordinate change to location
+    params['position'] = [0., 0., 0.]
+
+    intensity = [0., 0., 0.]
+    params['intensity'] = export_ctx.spectrum(intensity)
+    export_ctx.data_add(params, name=name)

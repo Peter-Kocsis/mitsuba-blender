@@ -291,7 +291,7 @@ def b_material_to_dict(export_ctx, b_mat):
         except NotImplementedError as err:
             export_ctx.log("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]), 'WARN')
             mat_params = {'type':'diffuse'}
-            mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3])
+            mat_params['reflectance'] = export_ctx.spectrum([1.0,1.0,1.0])
 
     else:
         mat_params = {'type':'diffuse'}
@@ -430,17 +430,26 @@ def convert_world(export_ctx, surface_node, ignore_background):
     else:
         export_ctx.data_add(params)
 
+
 def export_world(export_ctx, world, ignore_background):
     '''
     export_ctx: export context
     world: blender 'world' object
     ignore_background: whether we ignore blender's default grey background or not.
     '''
-    output_node = world.node_tree.nodes['World Output']
-    if not output_node.inputs["Surface"].is_linked:
-        return
-    surface_node = output_node.inputs["Surface"].links[0].from_node
-    try:
-        convert_world(export_ctx, surface_node, ignore_background)
-    except NotImplementedError as err:
-        export_ctx.log("Error while exporting world: %s. Not exporting it." % err.args[0], 'WARN')
+    if world is None:
+        export_ctx.log(f"No world is defined for the scene, using no world lighting", 'WARN')
+        # params = {
+        #         'type': 'constant',
+        #         'radiance': export_ctx.spectrum([0.5, 0.5, 0.5])
+        #     }
+        # export_ctx.data_add(params, "World")
+    else:
+        output_node = world.node_tree.nodes['World Output']
+        if not output_node.inputs["Surface"].is_linked:
+            return
+        surface_node = output_node.inputs["Surface"].links[0].from_node
+        try:
+            convert_world(export_ctx, surface_node, ignore_background)
+        except NotImplementedError as err:
+            export_ctx.log("Error while exporting world: %s. Not exporting it." % err.args[0], 'WARN')

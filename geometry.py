@@ -180,7 +180,9 @@ class GeometryExporter:
             #only rename in the XML if the object is not an instancer (instancers are not saved in the XML file)
             if object_instance.is_instance or not object_instance.object.parent or not object_instance.object.parent.is_instancer:
                 last_key = next(reversed(export_ctx.scene_data)) # get the last added key
-                assert(export_ctx.scene_data[last_key]['type'] == 'ply')
+                if export_ctx.scene_data[last_key]['type'] != 'ply':
+                    return
+                # assert(export_ctx.scene_data[last_key]['type'] == 'ply')
                 export_ctx.scene_data[last_key]['filename'] = new_path
                 #also rename the ID, instances have no ID
                 if not object_instance.is_instance and export_ctx.export_ids:
