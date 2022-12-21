@@ -137,8 +137,8 @@ def export_object(deg_instance, export_ctx, is_particle):
             }
 
             # Add flat shading flag if needed
-            if not mts_mesh.has_vertex_normals():
-                params["face_normals"] = True
+            # if not mts_mesh.has_vertex_normals():
+            params["face_normals"] = True
 
             # Add material info
             if mat_nr == -1:

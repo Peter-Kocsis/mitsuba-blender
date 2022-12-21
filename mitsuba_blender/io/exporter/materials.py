@@ -185,7 +185,7 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         elif color_node.bl_idname == "ShaderNodeTexImage":
             # TODO: Implement emission texture
             filename = color_node.image.filepath
-            params_radiance = {"type": "bitmap", "filename": filename}
+            params_radiance = {"type": "bitmap", "filename": filename, "raw": True}
         else:
             raise NotImplementedError("Only default emitter color is supported.")  # TODO: rgb input
 

@@ -14,6 +14,7 @@ if "bpy" in locals():
         importlib.reload(camera)
 
 import bpy
+import yaml
 
 from . import export_context
 from . import materials
@@ -43,7 +44,7 @@ class SceneConverter:
         # Give the path to the export context, for saving meshes and files
         self.export_ctx.directory, _ = os.path.split(name)
 
-    def scene_to_dict(self, depsgraph, window_manager=None):
+    def scene_to_dict(self, depsgraph, window_manager=None, ignore_cameras=False):
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -98,7 +99,7 @@ class SceneConverter:
                 geometry.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
-                if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
+                if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render and not ignore_cameras:
                     camera.export_camera(object_instance, b_scene, self.export_ctx)
             elif object_type == 'LIGHT':
                 lights.export_light(object_instance, self.export_ctx)
@@ -107,6 +108,11 @@ class SceneConverter:
 
     def dict_to_xml(self):
         self.xml_writer.process(self.export_ctx.scene_data)
+
+    def dict_to_yaml(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as file:
+            yaml.dump(self.export_ctx.scene_data, file)
 
     def dict_to_scene(self):
         from mitsuba import load_dict
