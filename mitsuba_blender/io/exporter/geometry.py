@@ -1,3 +1,4 @@
+from src.utils.shell import call_command
 from .materials import export_material
 from .export_context import Files
 from mathutils import Matrix
@@ -261,17 +262,8 @@ def export_object_obj(deg_instance, export_ctx, is_particle):
             print(f"Saving mesh {name} to {mesh_folder}")
             os.makedirs(mesh_folder, exist_ok=True)
             filepath = os.path.join(mesh_folder,  f"{name}.obj")
-
-            # bpy.context.window.view_layer.objects.active = b_object
-
-            print(f"{view_layer.active_layer_collection.collection.objects}")
-            # b_object.layers[1] = True
-            # collection_objects = view_layer.active_layer_collection.collection.objects
-            # collection_objects.link(b_object)
             view_layer.objects.active = my_obj
             my_obj.select_set(True)
-            print("Exporting")
-
             bpy.ops.export_scene.obj(
                 filepath=filepath,
                 use_selection=True,
@@ -280,10 +272,7 @@ def export_object_obj(deg_instance, export_ctx, is_particle):
                 axis_up="Y",
                 use_materials=False
             )
-            # collection_objects.unlink(b_object)
-            print("Exported")
             my_obj.select_set(False)
-
 
             # Build dictionary entry
             params = {
@@ -338,8 +327,163 @@ def export_object_obj(deg_instance, export_ctx, is_particle):
         export_ctx.data_add(params)
 
 
+def export_object_serialized(deg_instance, export_ctx, is_particle):
+    b_object = deg_instance.object
+    # Remove spurious characters such as slashes
+    name_clean = bpy.path.clean_name(b_object.name_full)
+    object_id = f"mesh-{name_clean}"
+
+    is_instance_emitter = b_object.parent is not None and b_object.parent.is_instancer
+    is_instance = deg_instance.is_instance
+
+    # Only write to file objects that have never been exported before
+    if export_ctx.data_get(object_id) is None:
+        if b_object.type == 'MESH':
+            b_mesh = b_object.data
+        else: # Metaballs, text, surfaces
+            b_mesh = b_object.to_mesh()
+
+        # Convert the mesh into one mitsuba mesh per different material
+        mat_count = len(b_mesh.materials)
+        converted_parts = []
+        if is_instance or is_instance_emitter:
+            transform = None
+        else:
+            transform = b_object.matrix_world
+
+        if mat_count == 0: # No assigned material
+            converted_parts.append((-1, (b_object, b_mesh)))
+        for mat_nr in range(mat_count):
+            if b_mesh.materials[mat_nr]:
+                converted_parts.append((mat_nr, (b_object, b_mesh)))
+                export_material(export_ctx, b_mesh.materials[mat_nr])
+
+        if b_object.type != 'MESH':
+            b_object.to_mesh_clear()
+
+        part_count = len(converted_parts)
+        # Use a ShapeGroup for instances and split meshes
+        use_shapegroup = is_instance or is_instance_emitter or is_particle
+        # TODO: Check if shapegroups for split meshes is worth it
+        if use_shapegroup:
+            group = {
+                'type': 'shapegroup'
+            }
+
+        # view_layer = bpy.context.view_layer
+        # desired_view_layer = None
+        # for scene in bpy.data.scenes:
+        #     print('scene : %s' % scene.name)
+        #     for scene_view_layer in scene.view_layers:
+        #         print('___ %s' % scene_view_layer.name)
+        #         desired_view_layer = scene_view_layer
+        # print(f'Active: {view_layer.name}')
+        # print(f'Desired: {desired_view_layer.name}')
+        # bpy.context.window.view_layer = desired_view_layer
+
+        scene = bpy.context.scene
+        view_layer = bpy.context.view_layer
+        print(f'Active: {view_layer.name}')
+        my_obj = None
+        for obj in scene.objects:
+            if obj.name == b_object.name:
+                my_obj = obj
+                break
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for (mat_nr, (b_object, b_mesh)) in converted_parts:
+            # Determine the file name
+            if part_count == 1:
+                name = f"{name_clean}"
+            else:
+                name = f"{name_clean}-{b_mesh.materials[mat_nr].name}"
+            mesh_id = f"mesh-{name}"
+
+            # Save as obj
+            mesh_folder = os.path.join(export_ctx.directory, export_ctx.subfolders['shape'])
+            print(f"Saving mesh {name} to {mesh_folder}")
+            os.makedirs(mesh_folder, exist_ok=True)
+            obj_path = os.path.join(mesh_folder,  f"{name}.obj")
+            view_layer.objects.active = my_obj
+            my_obj.select_set(True)
+            bpy.ops.export_scene.obj(
+                filepath=obj_path,
+                use_selection=True,
+                path_mode="ABSOLUTE",
+                axis_forward="-Z",
+                axis_up="Y",
+                use_materials=False
+            )
+            my_obj.select_set(False)
+
+            # Convert to sserialized
+
+            xml_path = os.path.join(mesh_folder,  f"{name}.xml")
+            convert_command = f'source external/mitsuba/setpath.sh && ' \
+                              f'LD_LIBRARY_PATH="{os.path.expanduser("~")}/usr/lib:$LD_LIBRARY_PATH" ' \
+                              f'mtsimport {obj_path} {xml_path}'
+            call_command(convert_command, export_ctx.logger)
+
+            # Clean up
+            os.remove(obj_path)
+            os.remove(xml_path)
+
+            # Build dictionary entry
+            params = {
+                'type': 'serialized',
+                'filename': f"{export_ctx.subfolders['shape']}/{name}.serialized"
+            }
+
+            # Add flat shading flag if needed
+            # if not mts_mesh.has_vertex_normals():
+            params["face_normals"] = True
+
+            # Add material info
+            if mat_nr == -1:
+                if not export_ctx.data_get('default-bsdf'): # We only need to add it once
+                    default_bsdf = {
+                        'type': 'twosided',
+                        'id': 'default-bsdf',
+                        'bsdf': {'type':'diffuse'}
+                    }
+                    export_ctx.data_add(default_bsdf)
+                params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
+            else:
+                mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
+                if export_ctx.exported_mats.has_mat(mat_id): # Add one emitter *and* one bsdf
+                    mixed_mat = export_ctx.exported_mats.mats[mat_id]
+                    params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
+                    params['emitter'] = mixed_mat['emitter']
+                else:
+                    params['bsdf'] = {'type':'ref', 'id':mat_id}
+
+            # Add dict to the scene dict
+            if use_shapegroup:
+                group[name] = params
+            else:
+                if export_ctx.export_ids:
+                    export_ctx.data_add(params, name=mesh_id)
+                else:
+                    export_ctx.data_add(params)
+
+        if use_shapegroup:
+            export_ctx.data_add(group, name=object_id)
+
+    if is_instance or is_particle:
+        params = {
+            'type': 'instance',
+            'shape': {
+                'type': 'ref',
+                'id': object_id
+            },
+            'to_world': export_ctx.transform_matrix(deg_instance.matrix_world)
+        }
+        export_ctx.data_add(params)
+
+
 def export_object(deg_instance, export_ctx, is_particle, use_ply=False):
     if use_ply:
         export_object_ply(deg_instance, export_ctx, is_particle)
     else:
-        export_object_obj(deg_instance, export_ctx, is_particle)
+        # export_object_obj(deg_instance, export_ctx, is_particle)
+        export_object_serialized(deg_instance, export_ctx, is_particle)
