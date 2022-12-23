@@ -422,7 +422,7 @@ def export_object_serialized(deg_instance, export_ctx, is_particle):
             convert_command = f'source external/mitsuba/setpath.sh && ' \
                               f'LD_LIBRARY_PATH="{os.path.expanduser("~")}/usr/lib:$LD_LIBRARY_PATH" ' \
                               f'mtsimport {obj_path} {xml_path}'
-            call_command(convert_command, export_ctx.logger)
+            call_command(convert_command, export_ctx.logger, executable="/bin/bash")
 
             # Clean up
             os.remove(obj_path)
