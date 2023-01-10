@@ -4,6 +4,7 @@ from .export_context import Files
 from mathutils import Matrix
 import os
 import bpy
+import numpy as np
 
 def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     '''
@@ -47,13 +48,22 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
     props['loops'] = b_mesh.loops[0].as_pointer()
     props['polys'] = b_mesh.polygons[0].as_pointer()
+
+    # # Convention difference between Mitsuba and Blender
+    # init_rot = Matrix.Rotation(np.pi / 2, 3, 'X')
+    # for bmesh_vertex in b_mesh.vertices:
+    #     bmesh_vertex.co = bmesh_vertex.co @ init_rot
     props['verts'] = b_mesh.vertices[0].as_pointer()
+
     if bpy.app.version > (3, 0, 0):
         props['normals'] = b_mesh.vertex_normals[0].as_pointer()
     props['vert_count'] = len(b_mesh.vertices)
     # Apply coordinate change
+    init_rot = Matrix.Rotation(np.pi / 2, 4, 'X')
     if matrix_world:
-        props['to_world'] = export_ctx.transform_matrix(matrix_world)
+        props['to_world'] = export_ctx.transform_matrix(init_rot @ matrix_world)
+    else:
+        props['to_world'] = export_ctx.transform_matrix(init_rot)
     props['mat_nr'] = mat_nr
     # Return the mitsuba mesh
     return load_dict(props)
@@ -481,9 +491,9 @@ def export_object_serialized(deg_instance, export_ctx, is_particle):
         export_ctx.data_add(params)
 
 
-def export_object(deg_instance, export_ctx, is_particle, use_ply=False):
+def export_object(deg_instance, export_ctx, is_particle, use_ply=True):
     if use_ply:
         export_object_ply(deg_instance, export_ctx, is_particle)
     else:
-        # export_object_obj(deg_instance, export_ctx, is_particle)
-        export_object_serialized(deg_instance, export_ctx, is_particle)
+        export_object_obj(deg_instance, export_ctx, is_particle)
+        # export_object_serialized(deg_instance, export_ctx, is_particle)
