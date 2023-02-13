@@ -4,7 +4,7 @@ from shutil import copy2
 from numpy import pi
 
 from mathutils import Matrix
-
+import numpy as np
 import bpy
 
 texture_exts = {
@@ -156,7 +156,17 @@ class ExportContext:
             os.makedirs(textures_folder)
         old_filepath = image.filepath
         image.filepath_raw = target_path
-        image.save()
+
+        # image.pixels = np.asarray(image.pixels, dtype=np.float64).ravel()
+
+
+        print(f"Image depth: {image.depth}")
+        if image.depth == 16:
+            # Workaround for a bug, that can't save 16 bit image
+            # TODO: change the scene settings to 16 bit
+            image.save_render(target_path)
+        else:
+            image.save()
         image.filepath_raw = old_filepath
         return f"{self.subfolders['texture']}/{name}"
 
