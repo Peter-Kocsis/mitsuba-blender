@@ -157,13 +157,7 @@ class ExportContext:
         old_filepath = image.filepath
         image.filepath_raw = target_path
 
-        # image.pixels = np.asarray(image.pixels, dtype=np.float64).ravel()
-
-
-        print(f"Image depth: {image.depth}")
         if image.depth == 16:
-            # Workaround for a bug, that can't save 16 bit image
-            # TODO: change the scene settings to 16 bit
             image.save_render(target_path)
         else:
             image.save()
