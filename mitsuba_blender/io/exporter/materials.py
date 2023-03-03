@@ -312,6 +312,11 @@ def convert_principled_materials_cycles(export_ctx, current_node):
         'clearcoat': clearcoat,
         'clearcoat_gloss': clearcoat_roughness
     })
+    # params.update({
+    #     'type': 'diffuse',
+    #     'reflectance': base_color,
+    # })
+    # return two_sided_bsdf(params)
 
     # NOTE: Blender uses the 'specular' value for dielectric/metallic reflections and the
     #       'IOR' value for transmission. Mitsuba only has one value for both which can either
