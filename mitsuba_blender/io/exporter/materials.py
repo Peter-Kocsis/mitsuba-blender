@@ -1,4 +1,6 @@
 import math
+import os
+import shutil
 
 import numpy as np
 from mathutils import Matrix
@@ -184,8 +186,8 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
             params_radiance = export_ctx.spectrum(radiance)
         elif color_node.bl_idname == "ShaderNodeTexImage":
             # TODO: Implement emission texture
-            filename = color_node.image.filepath
-            params_radiance = {"type": "bitmap", "filename": filename, "raw": True}
+            # params_radiance = {"type": "bitmap", "filename": filename, "raw": True}
+            params_radiance = export_texture_node(export_ctx, color_node)
         else:
             raise NotImplementedError("Only default emitter color is supported.")  # TODO: rgb input
 
