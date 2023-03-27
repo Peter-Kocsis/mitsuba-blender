@@ -80,6 +80,7 @@ class ExportContext:
             'shape': 'meshes',
             'spectrum': 'spectra'
                             }
+        self.diffuse_only = False
 
 
     def data_add(self, mts_dict, name=''):
